@@ -1,17 +1,17 @@
 package com.lgc.user_service.controller;
 
-import com.baomidou.mybatisplus.core.conditions.Wrapper;
+
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.baomidou.mybatisplus.core.metadata.IPage;
+
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lgc.user_service.entity.BookTable;
 import com.lgc.user_service.entity.SeatManage;
+import com.lgc.user_service.entity.vo.ChangePassWord;
 import com.lgc.user_service.entity.vo.R;
 
 import com.lgc.user_service.entity.UserManage;
 import com.lgc.user_service.entity.vo.UserQuery;
-import com.lgc.user_service.mapper.BookTableMapper;
+
 import com.lgc.user_service.service.BookTableService;
 import com.lgc.user_service.service.SeatManageService;
 import com.lgc.user_service.service.UserManageService;
@@ -23,8 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
-import javax.websocket.server.PathParam;
-import java.io.Serializable;
+
 import java.util.*;
 
 /**
@@ -77,8 +76,7 @@ public class UserManageController {
     @ApiOperation(value = "条件查询用户带分页功能 该接口复合了三个功能:1、按身份查询 2、按Id模糊查询 3、按姓名模糊查询 4、按用户状态查询 5、查信用分")
     //
     @PostMapping("pageConditionUser/{current}/{limit}")
-    public R pageConditionUser(@PathVariable long current,@PathVariable long limit,@RequestBody(
-            required = false) UserQuery userQuery){
+    public R pageConditionUser(@PathVariable long current,@PathVariable long limit,@RequestBody(required = false) UserQuery userQuery){
         //创建page对象
         Page<UserManage> pageUser=new Page<>(current,limit);
         //调用方法实现条件查询带分页功能
@@ -120,55 +118,6 @@ public class UserManageController {
         return R.ok().data("total",total).data("userList",userList);
     }
 
-    //条件查询用户功能
-    @ApiOperation(value = "条件查询用户带分页功能 该接口复合了三个功能:1、按身份查询 2、按Id模糊查询 3、按姓名模糊查询 4、按用户状态查询 5、查信用分")
-    //
-    @PostMapping("pageConditionUser2/{current}/{limit}")
-    public R pageConditionUser2(@PathVariable long current,@PathVariable long limit,@RequestBody(required = false) UserQuery userQuery){
-        //创建page对象
-        Page<UserManage> pageUser = new Page<>(current,limit);
-
-        //构建条件
-        QueryWrapper<UserManage> wrapper = new QueryWrapper<>();
-
-        if(userQuery!=null){
-            Long userId=userQuery.getUserId();
-            String userName=userQuery.getUserName();
-            Integer userStatus=userQuery.getUserStatus();
-            Integer userRole=userQuery.getUserRole();
-            Integer userCredit=userQuery.getUserCredit();
-            if(!StringUtils.isEmpty(userId)){
-                wrapper.like("user_id",userId);
-                System.out.println("userId="+userId);
-            }
-            if (!StringUtils.isEmpty(userStatus)) {
-                wrapper.eq("user_status",userStatus);
-                System.out.println("userStatus="+userStatus);
-            }
-            if (!StringUtils.isEmpty(userRole)) {
-                wrapper.eq("user_Role",userRole);
-                System.out.println("userRole="+userRole);
-            }
-            if (!StringUtils.isEmpty(userName)) {
-                wrapper.like("user_name",userName);//直接映射数据库名字 最好一模一样
-                System.out.println("userName="+userName);
-            }
-            if (!StringUtils.isEmpty(userCredit)) {
-
-                wrapper.eq("user_credit",userCredit);
-                System.out.println("userCredit="+userCredit);
-            }
-
-        }
-
-
-        //调用方法实现条件查询分页
-        userManageService.page(pageUser,wrapper);
-
-        long total = pageUser.getTotal();//总记录数
-        List<UserManage> records = pageUser.getRecords(); //数据list集合
-        return R.ok().data("total",total).data("rows",records);
-    }
     //添加用户功能
     @ApiOperation(value="添加用户")
     @PostMapping("addUser")
@@ -201,7 +150,7 @@ public class UserManageController {
     //登录功能
     @ApiOperation(value="登录功能 利用用户名 和密码登录")
     @PostMapping("login")
-    public R login(@RequestBody String userName,@RequestBody String userPwd){
+    public R login(String userName,String userPwd){
         QueryWrapper<UserManage> wrapper=new QueryWrapper<>();
         wrapper.eq("user_name",userName);
         wrapper.eq("user_password",userPwd);
@@ -245,21 +194,50 @@ public class UserManageController {
 
 //--------------------------------------刷新数据库信息---------------------------------------------//
 
-       Map<String,Object> map=new HashMap<>();
-       map.put("user_id",user_id);
-       map.put("seat_id",seat_id);
-        SeatManage seatManage=new SeatManage();
-        seatManage.setSeatStatus(0);
-        seatManage.setSeatId(seat_id);
-        seatManageService.updateById(seatManage);
+        Map<String,Object> map=new HashMap<>();
+        map.put("user_id",user_id);
+        map.put("seat_id",seat_id);
+        int floor=seatManageService.getById(seat_id).getSeatFloor();
+        seatManageService.removeById(new SeatManage().setSeatId(seat_id));
+        seatManageService.save(new SeatManage().setSeatId(seat_id).setSeatFloor(floor));
 
-       boolean flag=bookTableService.removeByMap(map);
-       if(flag){
-           return R.ok().message("取消预定成功！");
-       }else{
-           return R.error().message("取消预定失败！");
-       }
+
+        boolean flag=bookTableService.removeByMap(map);
+        if(flag){
+            return R.ok().message("取消预定成功！");
+        }else{
+            return R.error().message("取消预定失败！");
+        }
     }
+
+    @ApiOperation("修改用户时检查用户名是否和之前重复了 是的话返回20001 否则返回20001")
+    @PostMapping("checkUser_name")
+    public R checkUser_name(@RequestBody String user_name){
+        QueryWrapper<UserManage> wrapper=new QueryWrapper<>();
+        wrapper.eq("user_name",user_name);
+        List<UserManage> lists=userManageService.list(wrapper);
+        return lists.size()==0?R.ok().message("用户名可用！"):R.error().message("用户名不可用！");
+
+    }
+
+    @ApiOperation("修改密码")
+    @PostMapping("updateUserPwd")
+    public R updateUserPwd(@RequestBody ChangePassWord cg){
+        QueryWrapper<UserManage> wrapper=new QueryWrapper<>();
+        wrapper.eq("user_name",cg.getUser_name());
+        List<UserManage> lists=userManageService.list(wrapper);
+        if(lists!=null && lists.size()==1){
+            UserManage user=lists.get(0);
+            user.setUserPassword(cg.getUser_pwd());
+            userManageService.updateById(user);
+            return R.ok().data("user",user);
+
+        }else{
+            return R.error();
+        }
+
+    }
+
 
 }
 

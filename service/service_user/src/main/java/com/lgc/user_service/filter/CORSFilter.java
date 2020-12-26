@@ -26,7 +26,7 @@ public class CORSFilter implements Filter{
         System.out.println("============执行doFilter=============");
     }
     @Override
-    public void destroy() {
+    public void destroy()destroy() {
         System.out.println("============销毁Filter==============");
     }
 }
